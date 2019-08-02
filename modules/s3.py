@@ -21,7 +21,7 @@ def listBucketFiles(b = 'patient-records'):
     """list all the files in a given bucket"""
     logger.debug('Received call to listBucketFiles for %s' % b)
     bu = s.Bucket(b) 
-    l = [(b, x.key) for x in bu.objects.all()]
+    l = [x for x in bu.objects.all()]
     logger.info('Got listing of %s files in %s' % (len(l), b))
     return(l)
 

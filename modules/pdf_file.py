@@ -6,6 +6,7 @@ import logging
 import os
 from PIL import Image
 import tempfile
+from models import gms_consent_db
 
 logger = logging.getLogger(__name__)
 
@@ -45,20 +46,22 @@ class ConsentForm:
             o.download_fileobj(f)
             return(f.name)
 
-        self.path = dlToTemp(o)
+        self.bucket = o.bucket_name
+        self.key = o.key
+        #self.path = dlToTemp(o)
         self.file_id = file_id
-        self.mime_type = checkMimeType(self.path)[0]
-        self.pages = pdfToImage(self.path)
-        self.valid_file = self.mime_type in ['application/pdf'] and self.pages is not None
+        #self.mime_type = checkMimeType(self.path)[0]
+        #self.pages = pdfToImage(self.path)
+        #self.valid_file = self.mime_type in ['application/pdf'] and self.pages is not None
 
-    def RemoveEmpties(self, minsd = 10):
+    def removeEmpties(self, minsd = 10):
         """remove pages that look like they're empty, sd of pixels is below certain amount"""
         logger.debug('Received call to RemoveEmpties for file_id %s' % self.file_id)
         empty_pages = [np.std(i) < minsd for i in self.pages]
         logger.info('Removing %s pages' % sum(empty_pages))
         self.pages = [i for (i, e) in zip(empty_pages, self.pages) if not e]
 
-    def RotateLandscapePages(self):
+    def rotateLandscapePages(self):
         """rotate any landscape pages"""
         logger.debug('Received call to RotateLandscapePages for file_id %s' % self.file_id)
         for i in range(len(self.pages)):
@@ -66,7 +69,7 @@ class ConsentForm:
                 logger.debug('Rotating page number %s' % (i+1))
                 self.pages[i] = np.rot90(self.pages[i])
 
-    def ExportPages(self, root_folder):
+    def exportPages(self, root_folder):
         """save pages as images to given folder"""
         logger.debug('Received call to ExportImages for file_id %s' % self.file_id)
         # create the folder
@@ -87,6 +90,24 @@ class ConsentForm:
                 self.image_filepaths.append(fn)
             except:
                 logger.warning('Export of %s failed' % fn)
+
+    def addToDB(self, s):
+        """add relevant rows to database, s is a sqlalchemy session"""
+        q = s.query(gms_consent_db.s3Object).\
+            filter(gms_consent_db.s3Object.s3_key == self.key).first()
+        if q is None:
+            a = gms_consent_db.s3Object(
+                s3_bucket = self.bucket,
+                s3_key = self.key,
+                images = []
+            )
+    #        if self.pages:
+    #            for i in range(len(self.pages)):
+    #                a.images.append(gms_consent_db.fileImage(
+    #                    path = self.image_filepaths[i],
+    #                    page_number = i + 1
+    #                ))
+            s.add(a)
 
     def __repr__(self):
         return('<Consent Form at %s>' % self.path)
