@@ -5,12 +5,17 @@ import cv2
 import logging
 import os
 from PIL import Image
+import tempfile
 
 logger = logging.getLogger(__name__)
 
-class ConsentForm:
+#tempdir = tempfile.TemporaryDirectory().name
+#tempdir = 'Users/simonthompson/scratch/temp'
 
-    def __init__(self, path, file_id):
+class ConsentForm:
+    """class for an instance of a consent form on S3 buckets, gets initiated with an S3 object"""
+
+    def __init__(self, o, file_id):
 
         def checkMimeType(f):
             """get file mime type"""
@@ -23,20 +28,27 @@ class ConsentForm:
             return(cv2.cvtColor(i, cv2.COLOR_BGR2GRAY))
         
         def pdfToImage(f):
-            """get images from pdf files"""
+            """get images from pdf files, deletes the original pdf"""
             logger.debug('Converting %s to images for file_id %s' % (f, self.file_id))
             try:
                 i = pdf2image.convert_from_path(f)
                 o = [toGray(np.array(x)) for x in i]
+                os.remove(f)
             except (AttributeError, pdf2image.exceptions.PDFPageCountError) as e:
-                logger.warning('Image conversion failed for %s' % f)
+                logger.warning('Image conversion failed for %s - %s' % (f, e))
                 o = None
             return(o)
 
-        self.path = path
+        def dlToTemp(o):
+            """download file from S3 to temp"""
+            f = tempfile.NamedTemporaryFile(delete = False)
+            o.download_fileobj(f)
+            return(f.name)
+
+        self.path = dlToTemp(o)
         self.file_id = file_id
-        self.mime_type = checkMimeType(path)[0]
-        self.pages = pdfToImage(path)
+        self.mime_type = checkMimeType(self.path)[0]
+        self.pages = pdfToImage(self.path)
         self.valid_file = self.mime_type in ['application/pdf'] and self.pages is not None
 
     def RemoveEmpties(self, minsd = 10):
@@ -79,5 +91,3 @@ class ConsentForm:
     def __repr__(self):
         return('<Consent Form at %s>' % self.path)
 
-a = ConsentForm('/Users/simonthompson/scratch/Joint-Statement-201905.pdf', 'file_id_a')
-a.ExportPages('/Users/simonthompson/scratch')

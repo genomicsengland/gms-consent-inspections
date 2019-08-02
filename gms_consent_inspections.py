@@ -6,7 +6,7 @@ import log
 import subprocess
 import local_config
 from sqlalchemy.orm import sessionmaker
-from modules import s3
+from modules import s3, pdf_file
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,15 @@ class ConsInsp(object):
             s.download_fileobj('formLibrary', 'Consent.pdf#test1', f)
 
     def ListFiles(self):
-        l = s3.ListBucketFiles('patient-records')
-        print(l[0:20])
+        l = s3.listBucketFiles('patient-records')
+        print(l[0:100])
+
+    def GetAFile(self):
+        l = s3.listBucketFiles('patient-records')
+        o = [s3.createS3Obj(b, k) for b, k in l]
+        c = pdf_file.ConsentForm(o[100], 'id3')
+        c.ExportPages('/Users/simonthompson/scratch')
+        print(c.image_filepaths)
 
 if __name__ == "__main__":
     fire.Fire(ConsInsp)
