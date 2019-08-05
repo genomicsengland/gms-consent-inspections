@@ -45,11 +45,16 @@ class ConsInsp(object):
 
     def getAFile(self):
         s = makeSession()
-        l = s3.listBucketFiles('patient-records')
-        o = [s3.createS3Obj(b, k) for b, k in l]
-        c = pdf_file.ConsentForm(o[100], 'id3')
-        c.exportPages('/Users/simonthompson/scratch')
-        print(c.image_filepaths)
+        a = gms_consent_db.attachment(
+            attachment_uid = '442ced20-97bd-4f75-bf9b-2929cb532358'
+        )
+        s.add(a)
+        s.flush()
+        print(a.file_id)
+        o = s3.createS3Obj('patient-records',  'patient-records/83a20d02-5947-40cc-93d9-415e78fbd58a_28306e81-a10c-4363-9bdb-5e83400ea1aa_Dog 4.jpg')
+        c = pdf_file.ConsentForm(o, a)
+        #c.exportPages('/Users/simonthompson/scratch')
+        #print(c.image_filepaths)
         c.addToDB(s)
         s.commit()
 
