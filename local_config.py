@@ -2,16 +2,23 @@
 from string import Template
 import get_profile
 
+##-- Connections
 # psycopg2 connection string template
 databaseStringTemplate = 'postgresql+psycopg2://$user:$password@$host:$port/$database'
+conns = get_profile.getProfile(items = ['ngis_slave_db','s3_consent_keys', 'local_postgres_con', 'ldap'])
 
-conns = get_profile.getProfile(items = ['ngis_slave_db', 'mis_con', 's3_consent_keys', 'local_postgres_con', 'ldap'])
-
+# S3 Bucket
 s3_bucket_config = {**conns['s3_consent_keys'], 'url': 'https://cas.cor00005.ukcloud.com/'}
 
-# generate connection string to pass to SQLAlchemy Engine
+# GR Slave DB
 gr_db_connection_string = Template(databaseStringTemplate).safe_substitute({**conns['ngis_slave_db'], "database": "ngis_genomicrecord_alpha"})
+
+# Index DB
 gms_consent_db_connection_string = Template(databaseStringTemplate).safe_substitute({**conns['local_postgres_con'], "database": "testing"})
 
-# provide jira connection details
+# JIRA connection
 jira_config = {**conns['ldap'], 'url' : 'https://jira.extge.co.uk'}
+
+##-- File stores
+# folder to put image exports of the consent form pages
+image_store_dir = '/Users/simonthompson/scratch/temp'
