@@ -7,7 +7,7 @@ import os
 from botocore.exceptions import ClientError
 from PIL import Image
 import tempfile
-from models import gms_consent_db
+from models import gms_consent_db, gr_db
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class ConsentForm:
             logger.debug('Received call to identifyEmpties for file_id %s' % self.attachment.file_id)
             self.empty_pages = [np.std(i) < minsd for i in self.pages]
         
-        def pdfToImage():
+        def convertToImage():
             """get images from pdf files, deletes the original pdf"""
             logger.debug('Converting images for file_id %s' % self.attachment.file_id)
             try:
@@ -67,11 +67,17 @@ class ConsentForm:
             except ClientError as e:
                 logger.warning('Failed to download file_id %s - %s' % (self.attachment.file_id, e))
                 self.errors.append('download')
-            pdfToImage()
+            if hasattr(self, 'path'):
+                # if we've got a file path then attempt to convert to images and export
+                convertToImage()
+                exportPages('/Users/simonthompson/scratch')
 
         def extractUID():
             """extract the uids from filename"""
-
+            logger.debug('Splitting %s' % self.s3_object.key)
+            s = self.s3_object.key.split('_')
+            self.patient_uid = s[0]
+            self.referral_uid = s[1]
 
         def exportPages(root_folder):
             """save pages as images to given folder"""
@@ -100,7 +106,10 @@ class ConsentForm:
         self.errors = []
         self.pages = []
         processFile()
-        exportPages('/Users/simonthompson/scratch')
+        if hasattr(self, 'path'):
+            extractUID()
+        self.person_name = None
+        self.dob = None
 
     def addToDB(self, s):
         """add relevant rows to database, s is a sqlalchemy session"""
@@ -127,6 +136,37 @@ class ConsentForm:
         except:
             logger.info('cannot add errors')
 
+    def extractParticipantInfo(self, s):
+        """Get participant info from GR database for the form's owner"""
+        logger.debug('Getting participant info for %s using %s' % (self.attachment.file_id, self.patient_uid))
+        pax = s.query(gr_db.Patient.person_uid,
+                      gr_db.Patient.patient_date_of_birth).\
+            filter(gr_db.Patient.uid == self.patient_uid).first()
+        per = s.query(gr_db.Person.person_first_name,
+                      gr_db.Person.person_family_name).\
+            filter(gr_db.Person.uid == pax[0]).first()
+        if pax is not None and per is not None:
+            logger.debug('Linked to person_uid %s' % pax[0])
+            self.person_name = ('%s %s' % (per[0], per[1])).upper()
+            self.dob = '{0:%Y-%m-%d}'.format(pax[1])
+        else:
+            self.errors.append('linking to participant')
+
+    def cropImageArea(self, p, x, y, w, h, fw):
+        """crop out a specific portion of a page, and return it to specific width and height
+        p - page; x,y - top left corner as proportion of page width & height,
+        w,h - proportion of page width and height to be included;
+        fw - final width of image in pixels to be generated"""
+        # get sizes and resize factors
+        img = self.pages[p - 1]
+        ih,iw = img.shape
+        f = iw / fw
+        # crop out the relevant part of the image
+        cimg = img[int(ih * y):int(ih*(y+h)), int(iw * x):int(iw * (x + w))]
+        # return a resized version of the crop
+        return cv2.resize(cimg, dsize = (int(ih / f), fw))
+
+
     def __repr__(self):
-        return('<Consent Form at %s>' % self.path)
+        return('Consent form - ID ' % self.attachment.file_id)
 
