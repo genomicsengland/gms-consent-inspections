@@ -69,12 +69,16 @@ class ConsInsp(object):
             s.add(a)
             s.flush()
             b, k = i[1].split('/')
-            o = s3.createS3Obj(b, k)
+            o = s3.createS3Obj(b, k + 'jdfsk')
             c = attachment.Attachment(o, a)
             c.extractParticipantInfo(s)
             objects.append(c)
-            table.append([str(c.attachment.file_id), c.person_name, c.dob, '!%s.png!' % c.attachment.file_id, '[Fault|%s]' % c.createFaultTicketURL()])
-            crops.append(('%s.png' % c.attachment.file_id, c.cropImageArea(1, 0.5, 0.5, 0.25, 0.25, 150))) 
+            if len(c.errors) == 0:
+                table.append([str(c.attachment.file_id), c.person_name, c.dob, '!%s.png!' % c.attachment.file_id, '[Fault|%s]' % c.createFaultTicketURL()])
+                crops.append(('%s.png' % c.attachment.file_id, c.cropImageArea(1, 0.5, 0.5, 0.25, 0.25, 150))) 
+            else:
+                t = jira.ErrorTicket(';'.join(c.errors), c.attachment.file_id)
+                t.createTicket()
         t = jira.InspectionTicket()
         t.description_table = table
         t.attachments = crops

@@ -49,6 +49,7 @@ def arrayToBytes(arr):
 
 class InspectionTicket:
     """an inspection ticket instance"""
+
     def __init__(self):
         logger.debug('Creating new instance of InspectionTicket')
         self.summary = 'Consent Inspection %s' % '{0:%Y-%m-%d}'.format(datetime.datetime.today())
@@ -79,25 +80,46 @@ class InspectionTicket:
         # gather together data for creating the ticket
         self.description = self.parseTable()
         d = {
-        "fields": {
-            "project":
-            {
-                "key": self.project
-            },
-            "summary": self.summary,
-            "description": self.description,
-            "issuetype": {
-                "name": self.issuetype
-            },
-            "assignee":{
-                "name": self.assignee
-            }
-        } }
+            "fields" : {
+            'project' : {'key' : self.project},
+            'summary' : self.summary,
+            'description' : self.description,
+            'issuetype' : {'name' : self.issuetype},
+            'assignee' : {'name' : self.assignee}
+            }}
         # create the ticket
         self.ticket_id = createJiraIssue(d)
-        logger.info('Ticket %s created' % self.ticket_id)
+        logger.info('Inspection ticket %s created' % self.ticket_id)
         # upload the attachments
         for i in self.attachments:
             uploadAttachment(self.ticket_id, i[0], i[1])
         logger.info('%s attachments added' % len(self.attachments))
+
+class ErrorTicket:
+    """a type of ticket to record errors associated with getting files"""
+
+    def __init__(self, e, file_id):
+        logger.debug("Creating new instance of ErrorTicket")
+        self.summary = 'Consent Error for file id %s' % file_id
+        self.project = 'CDT'
+        self.issuetype = 'Task'
+        self.assignee = 'sthompson'
+        self.description = 'There was an %s issue with this file' % e
+        self.ticket_id = None
+
+    def createTicket(self):
+        """generate the actual ticket"""
+        logger.debug('Received call to createTicket')
+        d = {
+            "fields" : {
+            'project' : {'key' : self.project},
+            'summary' : self.summary,
+            'description' : self.description,
+            'issuetype' : {'name' : self.issuetype},
+            'assignee' : {'name' : self.assignee}
+            }}
+        # create the ticket
+        self.ticket_id = createJiraIssue(d)
+        logger.info('Error ticket %s created' % self.ticket_id)
+
 
