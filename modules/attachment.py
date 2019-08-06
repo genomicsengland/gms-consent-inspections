@@ -10,6 +10,7 @@ from PIL import Image
 import tempfile
 from models import gms_consent_db, gr_db
 import local_config
+import urllib.parse
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,19 @@ class Attachment:
         cimg = img[int(ih * y):int(ih*(y+h)), int(iw * x):int(iw * (x + w))]
         # return a resized version of the crop
         return cv2.resize(cimg, dsize = (int(ih / f), fw))
+
+    def createFaultTicketURL(self):
+        """create url to create """
+        d = {
+            "reporter" : "sthompson",
+            "issuetype" : "3",
+            "assignee" : "sthompson",
+            "summary" : 'Consent Form Fault for File %s' % self.attachment.file_id,
+            "description" : "Something has gone wrong with this file.\n Original location %s/%s" % (self.s3_object.bucket_name, self.s3_object.key),
+            "pid" : "11438"
+        }
+        url = '%s/secure/CreateIssueDetails!init.jspa?%s' % (local_config.jira_config['url'], urllib.parse.urlencode(d))
+        return url
 
     def __repr__(self):
         return('<Attachment - ID %s>' % self.attachment.file_id)

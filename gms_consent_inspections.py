@@ -60,7 +60,7 @@ class ConsInsp(object):
             filter(gr_db.Attachment.attachment_title == 'record-of-discussion-form.pdf')
         print(test_uids)
         objects = []
-        table = [['id', 'name', 'dob', 'image']]
+        table = [['id', 'name', 'dob', 'image', 'fault link']]
         crops = []
         for i in test_uids[0:3]:
             a = gms_consent_db.attachment(
@@ -71,17 +71,17 @@ class ConsInsp(object):
             b, k = i[1].split('/')
             o = s3.createS3Obj(b, k)
             c = attachment.Attachment(o, a)
-            c.addToDB(s)
             c.extractParticipantInfo(s)
             objects.append(c)
-            table.append([str(c.attachment.file_id), c.person_name, c.dob, '!%s.png!' % c.attachment.file_id])
+            table.append([str(c.attachment.file_id), c.person_name, c.dob, '!%s.png!' % c.attachment.file_id, '[Fault|%s]' % c.createFaultTicketURL()])
             crops.append(('%s.png' % c.attachment.file_id, c.cropImageArea(1, 0.5, 0.5, 0.25, 0.25, 150))) 
         t = jira.InspectionTicket()
         t.description_table = table
         t.attachments = crops
         t.createTicket()
-        d = defaultJiraIssueDict
-        d['fields']['description'] = listToTable(table) 
+        for i in objects:
+            i.attachment.host_jira_ticket_id = t.ticket_id 
+            i.addToDB(s)
         s.commit()
 
     def recreateConsentDB(self):
