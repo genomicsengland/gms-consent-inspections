@@ -90,21 +90,6 @@ class AttachmentVersion(Base):
     attachment_type_cid_mod = Column(Boolean, nullable=False, server_default=text("false"))
 
 
-class AwsdmsDdlAudit(Base):
-    __tablename__ = 'awsdms_ddl_audit'
-    __table_args__ = {'schema': 'public'}
-
-    c_key = Column(BigInteger, primary_key=True, server_default=text("nextval('\"public\".awsdms_ddl_audit_c_key_seq'::regclass)"))
-    c_time = Column(DateTime)
-    c_user = Column(String(64))
-    c_txn = Column(String(16))
-    c_tag = Column(String(24))
-    c_oid = Column(Integer)
-    c_name = Column(String(64))
-    c_schema = Column(String(64))
-    c_ddlqry = Column(Text)
-
-
 class CdrAuthorVersion(Base):
     __tablename__ = 'cdr_author_version'
     __table_args__ = {'schema': 'public'}

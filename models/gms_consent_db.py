@@ -8,53 +8,40 @@ import datetime
 Base = declarative_base()
 metadata = Base.metadata
 
-class attachment(Base):
+class Attachment(Base):
     __tablename__ = 'attachment'
     __table_args__ = {'schema': 'dbs_consent_inspection'}
 
-    file_id = Column(Integer, primary_key = True)
-    attachment_uid = Column(UUID(as_uuid = True))
-    attachment_title = Column(String)
+    attachment_id = Column(Integer, primary_key = True)
+    gr_attachment_uid = Column(UUID(as_uuid = True))
+    s3_bucket = Column(String)
+    s3_key = Column(String)
+    patient_uid = Column(UUID(as_uuid = True))
+    referral_uid = Column(UUID(as_uuid = True))
     host_jira_ticket_id = Column(String)
     de_datetime = Column(DateTime, nullable = False, default = datetime.datetime.now())
 
-    # one-to-one relationship with object on s3, one-to-many relationship with errors
-    s3_object = relationship('s3Object', uselist = False, backref = 'attachment_object')
-    errors = relationship('error', backref = 'attachment_error')
+    # one-to-many relationship with images and errors
+    errors = relationship('Error', backref = 'attachment_error')
+    images = relationship('Image', backref = 'attachment_image')
 
-class s3Object(Base):
-    __tablename__ = 's3_object'
+class Image(Base):
+    __tablename__ = 'image'
     __table_args__ = {'schema': 'dbs_consent_inspection'}
 
-    s3_object_id = Column(Integer, primary_key = True)
-    file_id = Column(ForeignKey('dbs_consent_inspection.attachment.file_id'), nullable = False)
-    s3_bucket = Column(String)
-    s3_key = Column(String)
-    last_modified = Column(DateTime)
-    first_uid = Column(UUID(as_uuid = True))
-    second_uid = Column(UUID(as_uuid = True))
-    de_datetime = Column(DateTime, nullable = False, default = datetime.datetime.now())
-
-    # one-to-one relationship with attachment, one-to-many relationship with fileImage
-    images = relationship('fileImage', backref = 's3_object')
-
-class fileImage(Base):
-    __tablename__ = 'file_image'
-    __table_args__ = {'schema': 'dbs_consent_inspection'}
-
-    file_image_id = Column(Integer, primary_key = True)
-    s3_object_id = Column(ForeignKey('dbs_consent_inspection.s3_object.s3_object_id'), nullable = False)
+    image_id = Column(Integer, primary_key = True)
+    attachment_id = Column(ForeignKey('dbs_consent_inspection.attachment.attachment_id'), nullable = False)
     path = Column(String)
     page_number = Column(Integer)
     page_empty = Column(Boolean)
     de_datetime = Column(DateTime, nullable = False, default = datetime.datetime.now())
 
-class error(Base):
+class Error(Base):
     __tablename__ = 'error'
     __table_args__ = {'schema': 'dbs_consent_inspection'}
 
     error_id = Column(Integer, primary_key = True)
-    file_id = Column(ForeignKey('dbs_consent_inspection.attachment.file_id'), nullable = False)
+    attachment_id = Column(ForeignKey('dbs_consent_inspection.attachment.attachment_id'), nullable = False)
     error_type = Column(String)
     error_status = Column(String)
     de_datetime = Column(DateTime, nullable = False, default = datetime.datetime.now())

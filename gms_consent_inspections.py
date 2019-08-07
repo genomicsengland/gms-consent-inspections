@@ -56,36 +56,28 @@ class ConsInsp(object):
 
     def process(self):
         s = makeSession()
-        test_uids = s.query(gr_db.Attachment.uid, gr_db.Attachment.attachment_url).\
+        test_uids = s.query(gr_db.Attachment).\
             filter(gr_db.Attachment.attachment_title == 'record-of-discussion-form.pdf')
         print(test_uids)
         objects = []
         table = [['id', 'name', 'dob', 'image', 'fault link']]
         crops = []
         for i in test_uids[0:3]:
-            a = gms_consent_db.attachment(
-                attachment_uid = i[0]
-            )
-            s.add(a)
-            s.flush()
-            b, k = i[1].split('/')
-            o = s3.createS3Obj(b, k + 'jdfsk')
-            c = attachment.Attachment(o, a)
+            c = attachment.Attachment(i, s)
             c.extractParticipantInfo(s)
             objects.append(c)
-            if len(c.errors) == 0:
-                table.append([str(c.attachment.file_id), c.person_name, c.dob, '!%s.png!' % c.attachment.file_id, '[Fault|%s]' % c.createFaultTicketURL()])
-                crops.append(('%s.png' % c.attachment.file_id, c.cropImageArea(1, 0.5, 0.5, 0.25, 0.25, 150))) 
+            if not c.errored:
+                table.append([str(c.attachment_id), c.person_name, c.dob, '!%s.png!' % c.attachment_id, '[Fault|%s]' % c.createFaultTicketURL()])
+                crops.append(('%s.png' % c.attachment_id, c.cropImageArea(1, 0.5, 0.5, 0.25, 0.25, 150))) 
             else:
-                t = jira.ErrorTicket(';'.join(c.errors), c.attachment.file_id)
+                t = jira.ErrorTicket(';'.join(c.errors), c.attachment_id)
                 t.createTicket()
-        t = jira.InspectionTicket()
-        t.description_table = table
+        t = jira.InspectionTicket(table)
         t.attachments = crops
         t.createTicket()
         for i in objects:
-            i.attachment.host_jira_ticket_id = t.ticket_id 
-            i.addToDB(s)
+            i.index_attachment.host_jira_ticket_id = t.ticket_id 
+            i.updateDB()
         s.commit()
 
     def recreateConsentDB(self):
