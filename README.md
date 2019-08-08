@@ -9,8 +9,9 @@ The process is as follows:
 1. link the attachment to patient and referral;
 1. source relevant participant details from Genomic Record db;
 1. crop out relevant portion of the form for inspection;
-1. add to table in JIRA ticket with other new documents.
+1. add to table in JIRA ticket with other new documents;
+1. generate error tickets for any attachments that accumalate errors;
+1. update the tracker database with fault tickets resulting from manual checking of the inspection tickets;
+1. update details of each ticket in the tracker database by read ticket data from JIRA.
 
-Any documents where any of the steps fail are the subject of a separate ticket.
-
-A record of documents processed is stored on CDT's Index database.
+The tracker database stores details of each attachment ingested, errors resulting from document inspection and processing, and the matching JIRA tickets.
