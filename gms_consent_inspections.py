@@ -6,7 +6,7 @@ import log
 import subprocess
 import local_config
 from sqlalchemy.orm import sessionmaker
-from modules import s3, attachment, jira
+from modules import s3, attachment, jira, tickets
 from models import getEngine, makeSession, gms_consent_db, gr_db
 
 logger = logging.getLogger(__name__)
@@ -28,21 +28,6 @@ def listToTable(l):
             out.append('|' + '|'.join(l[i]) + '|')
     return '\n'.join(out)
 
-defaultJiraIssueDict = {
-"fields": {
-    "project":
-    {
-        "key": "CDT"
-    },
-    "summary": "REST ye merry gentlemen.",
-    "issuetype": {
-        "name": "Bug"
-    },
-    "assignee":{
-        "name":"sthompson"
-    }
-} }
-
 # create class that will become command argument with Fire
 # e.g. python3 ngis_mq.py RunReferralTests
 class ConsInsp(object):
@@ -54,30 +39,55 @@ class ConsInsp(object):
                      'public',
                      fn)
 
+    def checkForFaultTickets(self):
+        s = makeSession()
+        all_tickets = tickets.listJiraIssues('summary%20~%20%27Consent%20Form%20Fault%27') 
+        existing_tickets = s.query(gms_consent_db.Ticket.ticket_key).all()
+        existing_tickets = [x[0] for x in existing_tickets]
+        new_tickets = [x for x in all_tickets if x not in existing_tickets]
+        for i in new_tickets:
+            n = tickets.NewTicket(i)
+            n.updateDB(s, 'inspection_fault')
+        s.commit()
+
+    def inspectExistingTickets(self):
+        # get new tickets we didn't know about
+        s = makeSession()
+        new_tickets = tickets.listJiraIssues('summary%20~%20%27Consent%20Form%20Fault%27') 
+        for i in new_tickets:
+            a = gms_consent_db.Ticket(ticket_key = i)
+            s.add(a)
+        q = s.query(gms_consent_db.Ticket)
+        for t in q:
+            logger.info('Checking %s' % t.ticket_key)
+            e = tickets.ExistingTicket(t)
+            e.updateDB()
+        s.commit()
+
+
     def process(self):
         s = makeSession()
         test_uids = s.query(gr_db.Attachment).\
             filter(gr_db.Attachment.attachment_title == 'record-of-discussion-form.pdf')
-        print(test_uids)
         objects = []
         table = [['id', 'name', 'dob', 'image', 'fault link']]
         crops = []
-        for i in test_uids[0:3]:
+        for i in test_uids[0:10]:
             c = attachment.Attachment(i, s)
             c.extractParticipantInfo(s)
-            objects.append(c)
             if not c.errored:
                 table.append([str(c.attachment_id), c.person_name, c.dob, '!%s.png!' % c.attachment_id, '[Fault|%s]' % c.createFaultTicketURL()])
                 crops.append(('%s.png' % c.attachment_id, c.cropImageArea(1, 0.5, 0.5, 0.25, 0.25, 150))) 
+                objects.append(c)
             else:
-                t = jira.ErrorTicket(';'.join(c.errors), c.attachment_id)
-                t.createTicket()
-        t = jira.InspectionTicket(table)
-        t.attachments = crops
-        t.createTicket()
-        for i in objects:
-            i.index_attachment.host_jira_ticket_id = t.ticket_id 
-            i.updateDB()
+                e = jira.ErrorTicket(s, c)
+                e.createTicket()
+            c.updateDB()
+        if len(objects):
+            t = jira.InspectionTicket(s, table, objects)
+            t.tracking_db_ticket.attachments = [x.index_attachment for x in objects]
+            t.ticket_image_attachments = crops
+            t.createTicket()
         s.commit()
 
     def recreateConsentDB(self):

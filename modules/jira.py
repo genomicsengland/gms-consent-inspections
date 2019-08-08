@@ -6,6 +6,7 @@ import io
 from PIL import Image
 import datetime
 import sys
+from models import gms_consent_db
 
 logger = logging.getLogger(__name__)
 
@@ -54,19 +55,22 @@ class Ticket:
     Attributes:
         project - the name of the JIRA project where the tickets will end up
         assignee - the username of the person who the tickets will be assigned to
-        attachments - a list to accommodate tuples of (attachment name, numpy array) attachments to be uploaded
+        ticket_image_attachments - a list to accommodate tuples of (attachment name, numpy array) of image attachments to be uploaded
         issuetype - the type of ticket (task, bug etc.)
         summary - the title of the ticket
         description - the main text of the ticket
+        ticket_key - the name of the ticket
+        ticket_id - the id of the ticket in the Index db
     """
 
     project = 'CDT'
     assignee = 'sthompson'
-    attachments = []
+    ticket_image_attachments = []
     issuetype = 'Task'
-    ticket_id = None
+    ticket_key = None
     summary = 'Default summary'
     description = 'Default description'
+    ticket_id = None
 
     def __init__(self):
         logger.debug('Creating new instance of Ticket')
@@ -84,13 +88,17 @@ class Ticket:
             'assignee' : {'name' : self.assignee}
             }}
         # create the ticket
-        self.ticket_id = createJiraIssue(d)
-        logger.info('Ticket %s created - %s/browse/%s' % (self.ticket_id, jira_config['url'], self.ticket_id))
+        self.ticket_key = createJiraIssue(d)
+        # update the SQLachmemy object with the ticket key
+        self.tracking_db_ticket.ticket_key = self.ticket_key
+        logger.info('Ticket %s created - %s/browse/%s' % (self.ticket_key, jira_config['url'], self.ticket_key))
         # upload the attachments
-        if len(self.attachments):
-            for i in self.attachments:
-                uploadAttachment(self.ticket_id, i[0], i[1])
-            logger.info('%s attachments added' % len(self.attachments))
+        if len(self.ticket_image_attachments):
+            for i in self.ticket_image_attachments:
+                uploadAttachment(self.ticket_key, i[0], i[1])
+            logger.info('%s attachments added' % len(self.ticket_image_attachments))
+
+
 
 class InspectionTicket(Ticket):
     """
@@ -98,9 +106,16 @@ class InspectionTicket(Ticket):
 
     Extra attributes:
         description_table: empty list to accommodate the list of lists that will be reformatted into a JIRA table by parseTableToDescription
+        tracking_db_ticket: instance of gms_consent_db.Ticket
     """
 
-    def __init__(self, description_table):
+    def __init__(self, session, description_table, attachment_objects):
+        """set up a new instance of InspectionTicket class
+        
+        Arguments:
+            session: a SQLAlchemy session
+            description_table: a list of lists that represent a table to be placed in ticket description
+            attachment_objects: list of instances of attachment.Attachment"""
 
         def parseTableToDescription(t):
             """convert list of lists to a jira markup table and update ticket description"""
@@ -114,15 +129,42 @@ class InspectionTicket(Ticket):
             return '\n'.join(out)
 
         logger.debug('Creating new instance of InspectionTicket')
+        # create the description table
         self.description = parseTableToDescription(description_table)
+        # populate the summary field
         self.summary = 'GMS Consent Inspection %s' % '{0:%Y-%m-%d}'.format(datetime.datetime.today())
-
+        # create a new instance of gms_consent_db.Ticket
+        self.tracking_db_ticket = gms_consent_db.Ticket(ticket_key = 'UNK', ticket_assignee = self.assignee, ticket_status = 'new')
+        # add in the Attachment.index_attachment for each of the attachments featured in the ticket
+        self.tracking_db_ticket.attachment = [x.index_attachment for x in attachment_objects]
+        # add the object into the session
+        session.add(self.tracking_db_ticket)
+        session.flush()
+        # update the ticket_id
+        self.ticket_id = self.tracking_db_ticket.ticket_id
 
 class ErrorTicket(Ticket):
-    """a type of ticket to record errors associated with getting files"""
+    """An error ticket inheriting from the Ticket class"""
 
-    def __init__(self, e, file_id):
+    def __init__(self, session, attachment_object):
+        """initiate a new instance of Error Ticket
+        
+        Arguments:
+            session: a SQLalchemy session
+            attachment_object: an instance of attachment.Attachment
+            """
+
         logger.debug("Creating new instance of ErrorTicket")
-        self.summary = 'Consent Error for file id %s' % file_id
-        self.description = 'There was an %s issue with this file' % e
+        # populate the text fields
+        self.summary = 'Consent Error for file id %s' % attachment_object.attachment_id
+        self.description = 'There was an %s issue with this file' % ';'.join(attachment_object.errors) 
+        # create a new instance of gms_consent_db.Ticket
+        self.tracking_db_ticket = gms_consent_db.Ticket(ticket_key = 'UNK', ticket_assignee = self.assignee, ticket_status = 'error')
+        # add in reference for the Attachment.index_attachment
+        self.tracking_db_ticket.errors = [gms_consent_db.Error(attachment_error = attachment_object.index_attachment)]
+        # add the object to the session
+        session.add(self.tracking_db_ticket)
+        session.flush()
+        # update the ticket_id
+        self.ticket_id = self.tracking_db_ticket.ticket_id
 

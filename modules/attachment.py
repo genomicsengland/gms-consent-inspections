@@ -12,6 +12,7 @@ from models import gms_consent_db, gr_db
 from modules import s3
 import local_config
 import urllib.parse
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,10 @@ class Attachment:
             try:
                 f = self.gr_attachment.attachment_url
                 b, k = f.split('/')
-                return s3.createS3Obj(b, k + 'fsdjkl')
+                #randomly make file not exist, helps for error generation testing
+                if random.choice([True, False]):
+                    k = k + 'fdsjkl'
+                return s3.createS3Obj(b, k)
             except Exception as e:
                 logError('sourcing file from s3 - %s' % e)
 
@@ -53,7 +57,9 @@ class Attachment:
             a = gms_consent_db.Attachment(
                 gr_attachment_uid = gr_attachment.uid,
                 s3_bucket = self.s3_object.bucket_name,
-                s3_key = self.s3_object.key
+                s3_key = self.s3_object.key,
+                images = [],
+                errors = []
             )
             session.add(a) 
             session.flush()
@@ -134,7 +140,7 @@ class Attachment:
                 self.path = f.name
                 self.mime_type = checkMimeType()[0]
             except ClientError as e:
-                logger.warning('Failed to download attachment_id %s - %s' % (self.attachment_id, self.path))
+                logger.warning('Failed to download attachment_id %s - %s' % (self.attachment_id, self.s3_object.key))
                 logError('download')
             if hasattr(self, 'path'):
                 # if we've got a file path then attempt to convert to images and export
@@ -168,8 +174,6 @@ class Attachment:
 
     def updateDB(self):
         """add relevant rows to database"""
-        self.index_attachment.images = []
-        self.index_attachment.errors = []
         try:
             for i in range(len(self.pages)):
                 self.index_attachment.images.append(gms_consent_db.Image(
@@ -179,13 +183,13 @@ class Attachment:
                 ))
         except:
             logger.info('cannot add pages')
-        try:
-            for i in range(len(self.errors)):
-                self.index_attachment.errors.append(gms_consent_db.Error(
-                    error_type = self.errors[i]
-                ))
-        except:
-            logger.info('cannot add errors')
+        #try:
+        #    for i in range(len(self.errors)):
+        #        self.index_attachment.errors.append(gms_consent_db.Error(
+        #            error_type = self.errors[i]
+        #        ))
+        #except:
+        #    logger.info('cannot add errors')
 
     def extractParticipantInfo(self, session):
         """Get participant info from GR database for the form's owner"""

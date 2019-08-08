@@ -1571,7 +1571,6 @@ class Attachment(Base):
 
     concept = relationship('Concept')
 
-
 class Patient(Base):
     __tablename__ = 'patient'
     __table_args__ = {'schema': 'public'}
