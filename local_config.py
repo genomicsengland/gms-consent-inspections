@@ -13,8 +13,8 @@ s3_bucket_config = {**conns['s3_consent_keys'], 'url': 'https://cas.cor00005.ukc
 # GR Slave DB
 gr_db_connection_string = Template(databaseStringTemplate).safe_substitute({**conns['ngis_slave_db'], "database": "ngis_genomicrecord_alpha"})
 
-# Index DB
-gms_consent_db_connection_string = Template(databaseStringTemplate).safe_substitute({**conns['local_postgres_con'], "database": "testing"})
+# Tracker DB
+tk_db_connection_string = Template(databaseStringTemplate).safe_substitute({**conns['local_postgres_con'], "database": "testing"})
 
 # JIRA connection
 jira_config = {**conns['ldap'], 'url' : 'https://jira.extge.co.uk'}

@@ -92,7 +92,7 @@ class ConsInsp(object):
 
     def recreateConsentDB(self):
         logger.info('Running recreateConsentDB')
-        e = getEngine(local_config.gms_consent_db_connection_string)
+        e = getEngine(local_config.tk_db_connection_string)
         tk_db.metadata.drop_all(e)
         tk_db.metadata.create_all(e)
 
