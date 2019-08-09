@@ -8,7 +8,7 @@ import os
 from botocore.exceptions import ClientError
 from PIL import Image
 import tempfile
-from models import gms_consent_db, gr_db
+from models import tk_db, gr_db
 from modules import s3
 import local_config
 import urllib.parse
@@ -22,7 +22,7 @@ class Attachment:
     Attributes:
         gr_attachment: an Instance of gr_db.Attachment
         s3_object: an S3 Object
-        index_attachment: an Instance of gms_consent_db.Attachment
+        index_attachment: an Instance of tk_db.Attachment
         path: the location of the file download, is deleted once file is successfully processed
         pages: a list of grayscale numpy arrays generated from the document scans
         empty_pages: boolean list showing which of the pages is thought to be empty 
@@ -54,7 +54,7 @@ class Attachment:
                 logError('sourcing file from s3 - %s' % e)
 
         def addToIndex():
-            a = gms_consent_db.Attachment(
+            a = tk_db.Attachment(
                 gr_attachment_uid = gr_attachment.uid,
                 s3_bucket = self.s3_object.bucket_name,
                 s3_key = self.s3_object.key,
@@ -176,7 +176,7 @@ class Attachment:
         """add relevant rows to database"""
         try:
             for i in range(len(self.pages)):
-                self.index_attachment.images.append(gms_consent_db.Image(
+                self.index_attachment.images.append(tk_db.Image(
                     path = self.image_filepaths[i],
                     page_number = i + 1,
                     page_empty = self.empty_pages[i]
@@ -185,7 +185,7 @@ class Attachment:
             logger.info('cannot add pages')
         #try:
         #    for i in range(len(self.errors)):
-        #        self.index_attachment.errors.append(gms_consent_db.Error(
+        #        self.index_attachment.errors.append(tk_db.Error(
         #            error_type = self.errors[i]
         #        ))
         #except:

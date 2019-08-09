@@ -7,7 +7,7 @@ import subprocess
 import local_config
 from sqlalchemy.orm import sessionmaker
 from modules import s3, attachment, jira, tickets
-from models import getEngine, makeSession, gms_consent_db, gr_db
+from models import getEngine, makeSession, tk_db, gr_db
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class ConsInsp(object):
     def checkForFaultTickets(self):
         s = makeSession()
         all_tickets = tickets.listJiraIssues('summary%20~%20%27Consent%20Form%20Fault%27') 
-        existing_tickets = s.query(gms_consent_db.Ticket.ticket_key).all()
+        existing_tickets = s.query(tk_db.Ticket.ticket_key).all()
         existing_tickets = [x[0] for x in existing_tickets]
         new_tickets = [x for x in all_tickets if x not in existing_tickets]
         for i in new_tickets:
@@ -55,9 +55,9 @@ class ConsInsp(object):
         s = makeSession()
         new_tickets = tickets.listJiraIssues('summary%20~%20%27Consent%20Form%20Fault%27') 
         for i in new_tickets:
-            a = gms_consent_db.Ticket(ticket_key = i)
+            a = tk_db.Ticket(ticket_key = i)
             s.add(a)
-        q = s.query(gms_consent_db.Ticket)
+        q = s.query(tk_db.Ticket)
         for t in q:
             logger.info('Checking %s' % t.ticket_key)
             e = tickets.ExistingTicket(t)
@@ -93,8 +93,8 @@ class ConsInsp(object):
     def recreateConsentDB(self):
         logger.info('Running recreateConsentDB')
         e = getEngine(local_config.gms_consent_db_connection_string)
-        gms_consent_db.metadata.drop_all(e)
-        gms_consent_db.metadata.create_all(e)
+        tk_db.metadata.drop_all(e)
+        tk_db.metadata.create_all(e)
 
 if __name__ == "__main__":
     fire.Fire(ConsInsp)

@@ -6,7 +6,7 @@ import io
 from PIL import Image
 import datetime
 import sys
-from models import gms_consent_db
+from models import tk_db
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class InspectionTicket(Ticket):
 
     Extra attributes:
         description_table: empty list to accommodate the list of lists that will be reformatted into a JIRA table by parseTableToDescription
-        tracking_db_ticket: instance of gms_consent_db.Ticket
+        tracking_db_ticket: instance of tk_db.Ticket
     """
 
     def __init__(self, session, description_table, attachment_objects):
@@ -133,8 +133,8 @@ class InspectionTicket(Ticket):
         self.description = parseTableToDescription(description_table)
         # populate the summary field
         self.summary = 'GMS Consent Inspection %s' % '{0:%Y-%m-%d}'.format(datetime.datetime.today())
-        # create a new instance of gms_consent_db.Ticket
-        self.tracking_db_ticket = gms_consent_db.Ticket(ticket_key = 'UNK', ticket_assignee = self.assignee, ticket_status = 'new')
+        # create a new instance of tk_db.Ticket
+        self.tracking_db_ticket = tk_db.Ticket(ticket_key = 'UNK', ticket_assignee = self.assignee, ticket_status = 'new')
         # add in the Attachment.index_attachment for each of the attachments featured in the ticket
         self.tracking_db_ticket.attachment = [x.index_attachment for x in attachment_objects]
         # add the object into the session
@@ -158,10 +158,10 @@ class ErrorTicket(Ticket):
         # populate the text fields
         self.summary = 'Consent Error for file id %s' % attachment_object.attachment_id
         self.description = 'There was an %s issue with this file' % ';'.join(attachment_object.errors) 
-        # create a new instance of gms_consent_db.Ticket
-        self.tracking_db_ticket = gms_consent_db.Ticket(ticket_key = 'UNK', ticket_assignee = self.assignee, ticket_status = 'error')
+        # create a new instance of tk_db.Ticket
+        self.tracking_db_ticket = tk_db.Ticket(ticket_key = 'UNK', ticket_assignee = self.assignee, ticket_status = 'error')
         # add in reference for the Attachment.index_attachment
-        self.tracking_db_ticket.errors = [gms_consent_db.Error(attachment_error = attachment_object.index_attachment)]
+        self.tracking_db_ticket.errors = [tk_db.Error(attachment_error = attachment_object.index_attachment)]
         # add the object to the session
         session.add(self.tracking_db_ticket)
         session.flush()

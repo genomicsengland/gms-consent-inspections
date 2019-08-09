@@ -3,7 +3,7 @@ import requests
 import logging
 from local_config import jira_config
 import datetime
-from models import gms_consent_db
+from models import tk_db
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class ExistingTicket:
     """An existing JIRA ticket that was previously created and exists in db
     
     Attributes:
-        tracker_db_ticket: instance of gms_consent_db.Ticket
+        tracker_db_ticket: instance of tk_db.Ticket
         key: the key of the JIRA ticket
         status: the current status of the JIRA ticket
         assignee: the current assignee of the JIRA ticket
@@ -84,7 +84,7 @@ class ExistingTicket:
             self.assignee = None
 
     def updateDB(self):
-        """Function to update the gms_consent_db.Ticket instance"""
+        """Function to update the tk_db.Ticket instance"""
         logger.debug('Received call to updateDB')
         self.tracker_db_ticket.ticket_status = self.status
         self.tracker_db_ticket.ticket_assignee = self.assignee
@@ -98,7 +98,7 @@ class NewTicket:
         attachment_id: the ID of the attachment the ticket concerns
         status: the current status of the JIRA ticket
         assignee: the current assignee of the JIRA ticket
-        tracker_db_ticket: instance of gms_consent_db.Ticket
+        tracker_db_ticket: instance of tk_db.Ticket
     """
 
     def __init__(self, key):
@@ -113,25 +113,25 @@ class NewTicket:
         self.attachment_id = l[1]
         self.status = d['status']['name']
         self.assignee = d['assignee']['name']
-        # make instance of gms_consent_db.Ticket
-        self.tracker_db_ticket = gms_consent_db.Ticket(ticket_key = self.key)
+        # make instance of tk_db.Ticket
+        self.tracker_db_ticket = tk_db.Ticket(ticket_key = self.key)
         logger.info('Got new ticket - %s - for attachment_id %s' % (self.key, self.attachment_id))
 
     def updateDB(self, session, error_type):
-        """Function to update the gms_consent_db with new objects which will be added to
+        """Function to update the tk_db with new objects which will be added to
         session and given the error_type argument"""
-        # get the gms_consent_db.Attachment object for attachment_id
-        att = session.query(gms_consent_db.Attachment).\
-            filter(gms_consent_db.Attachment.attachment_id == self.attachment_id).first()
-        # add the gms_consent_db.Ticket instance to session
+        # get the tk_db.Attachment object for attachment_id
+        att = session.query(tk_db.Attachment).\
+            filter(tk_db.Attachment.attachment_id == self.attachment_id).first()
+        # add the tk_db.Ticket instance to session
         session.add(self.tracker_db_ticket)
-        # make new gms_consent_db.Error instance, linking to the attachment and ticket
-        err = gms_consent_db.Error(error_type = error_type)
+        # make new tk_db.Error instance, linking to the attachment and ticket
+        err = tk_db.Error(error_type = error_type)
         err.attachment_error = att
         err.ticket_error = self.tracker_db_ticket
         # add it to the session
         session.add(err)
-        # update the gms_consent_db.Ticket attributes
+        # update the tk_db.Ticket attributes
         self.tracker_db_ticket.ticket_status = self.status
         self.tracker_db_ticket.ticket_assignee = self.assignee
         self.tracker_db_ticket.ticket_updated = datetime.datetime.today()

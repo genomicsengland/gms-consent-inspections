@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import logging
-from models import gms_consent_db, gr_db
+from models import tk_db, gr_db
 from local_config import gms_consent_db_connection_string, gr_db_connection_string
 
 logger = logging.getLogger(__name__)
@@ -11,7 +11,7 @@ def makeSession():
     logger.info('Received call to makeSession')
     session = sessionmaker()
     session.configure(binds = {
-        gms_consent_db.Base : getEngine(gms_consent_db_connection_string),
+        tk_db.Base : getEngine(gms_consent_db_connection_string),
         gr_db.Base : getEngine(gr_db_connection_string)
     })
     return session()
