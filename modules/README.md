@@ -9,7 +9,7 @@ The class provides methods to update the tracker database with details of the im
 
 ## jira
 
-The `jira` module provides an `InspectionTicket` and `ErrorTicket` class, both of which inherit from the `Ticket` class.   
+The `jira` module provides an `InspectionTicket` and `ErrorTicket` class, both of which inherit from the `Ticket` class. They are for data that will be turned into tickets, as opposed to the `tickets` module that provides classes for tickets that already exist on JIRA. 
 These classes hold information and attachments which will then be sent to JIRA to create a new ticket, and hold instances of `tk_db.Ticket` that will be added to the tracker database.
 
 ## s3
