@@ -2,7 +2,7 @@
 #Scripts to help do the manual inspection of GMS consent forms
 import fire
 import logging
-import log
+from modules import log
 import subprocess
 import local_config
 from sqlalchemy.orm import sessionmaker
@@ -19,7 +19,7 @@ def autoModelGen(db_conn_str, schema, outfile):
                      "--outfile", outfile])
 
 def listToTable(l):
-    """convert list of lists to jira style table"""
+    """convert list of lists to jira markupstyle table, first element is the column names"""
     out = []
     for i in range(len(l)):
         if i == 0:
@@ -29,69 +29,83 @@ def listToTable(l):
     return '\n'.join(out)
 
 # create class that will become command argument with Fire
-# e.g. python3 ngis_mq.py RunReferralTests
 class ConsInsp(object):
 
     def generateGRModel(self, fn = 'models/gr_db.py'):
-        """generate the gr_db model"""
+        """generate the gr_db SQLAlchemy model from the existing database"""
         logger.info("Running GenerateGRModel")
         autoModelGen(local_config.gr_db_connection_string,
                      'public',
                      fn)
 
-    def checkForFaultTickets(self):
+    def FindNewTickets(self):
+        """Find new error tickets and add them to db"""
         s = makeSession()
-        all_tickets = tickets.listJiraIssues('summary%20~%20%27Consent%20Form%20Fault%27') 
+        # get all the tickets we're interested in and those currently in db
+        all_tickets = tickets.listJiraIssues('project%20%3D%20"Clinical%20Data%20Wranglers%20%26%20Modellers"%20and%20summary%20~%20%27Consent%20Form%20Fault%27')
         existing_tickets = s.query(tk_db.Ticket.ticket_key).all()
         existing_tickets = [x[0] for x in existing_tickets]
-        new_tickets = [x for x in all_tickets if x not in existing_tickets]
-        for i in new_tickets:
-            n = tickets.NewTicket(i)
-            n.updateDB(s, 'inspection_fault')
+        # iterate through all the tickets
+        for t in all_tickets:
+            if t not in existing_tickets:
+                # else add the new ticket to the db
+                n = tickets.NewTicket(t)
+                n.updateDB(s, 'inspection_fault')
         s.commit()
 
-    def inspectExistingTickets(self):
-        # get new tickets we didn't know about
+    def UpdateTickets(self):
+        """Fetch all the tickets we know about and update details"""
         s = makeSession()
-        new_tickets = tickets.listJiraIssues('summary%20~%20%27Consent%20Form%20Fault%27') 
-        for i in new_tickets:
-            a = tk_db.Ticket(ticket_key = i)
-            s.add(a)
-        q = s.query(tk_db.Ticket)
-        for t in q:
-            logger.info('Checking %s' % t.ticket_key)
+        # get all the tickets we're interested in and those currently in db
+        existing_tickets = s.query(tk_db.Ticket)
+        # iterate through all the tickets
+        for t in existing_tickets:
+            # if already in the db, get it, then update the details
             e = tickets.ExistingTicket(t)
             e.updateDB()
         s.commit()
 
-
-    def process(self):
+    def ProcessNewConsentForms(self):
+        """Identify new consent forms and extract relevant parts into single ticket and write record to db"""
         s = makeSession()
-        test_uids = s.query(gr_db.Attachment).\
+        # get details on all the record of discussion forms in GR and TK db
+        all_gr_attachments = s.query(gr_db.Attachment).\
             filter(gr_db.Attachment.attachment_title == 'record-of-discussion-form.pdf')
-        objects = []
-        table = [['id', 'name', 'dob', 'image', 'fault link']]
-        crops = []
-        for i in test_uids[0:10]:
+        known_attachments = s.query(tk_db.Attachment.gr_attachment_uid).all()
+        known_attachments = [x[0] for x in known_attachments]
+        # isolate the new attachments
+        new_gr_attachments = [a for a in all_gr_attachments if a.uid not in known_attachments]
+        # create objects that will be added to during processing
+        attachment_objects = []
+        jira_table = [['id', 'name', 'dob', 'image', 'fault link']]
+        image_crops = []
+        # iterate over each of the attachments in the query
+        for i in new_gr_attachments[0:10]:
+            # create instance of attachment class, doing so will do some initial processing of the document
             c = attachment.Attachment(i, s)
+            # extract participant info from GR db for the matching participant
             c.extractParticipantInfo(s)
             if not c.errored:
-                table.append([str(c.attachment_id), c.person_name, c.dob, '!%s.png!' % c.attachment_id, '[Fault|%s]' % c.createFaultTicketURL()])
-                crops.append(('%s.png' % c.attachment_id, c.cropImageArea(1, 0.5, 0.5, 0.25, 0.25, 150))) 
-                objects.append(c)
+                # if no errors have been raised then we can go ahead and add it to what will go into the inspection ticket
+                jira_table.append([str(c.attachment_id), c.person_name, c.dob, '!%s.png!' % c.attachment_id, '[Fault|%s]' % c.createFaultTicketURL()])
+                image_crops.append(('%s.png' % c.attachment_id, c.cropImageArea(1, 0.5, 0.5, 0.25, 0.25, 150))) 
+                attachment_objects.append(c)
             else:
+                # if there are errors then we crate an error ticket
                 e = jira.ErrorTicket(s, c)
                 e.createTicket()
+            # add details of the attachment to the database
             c.updateDB()
-        if len(objects):
-            t = jira.InspectionTicket(s, table, objects)
-            t.tracking_db_ticket.attachments = [x.index_attachment for x in objects]
-            t.ticket_image_attachments = crops
+        if len(attachment_objects):
+            # if we actually have any documents to inspect then we go ahead and create an inspection ticket
+            t = jira.InspectionTicket(s, jira_table, attachment_objects)
+            t.tracking_db_ticket.attachments = [x.index_attachment for x in attachment_objects]
+            t.ticket_image_attachments = image_crops
             t.createTicket()
         s.commit()
 
-    def recreateConsentDB(self):
-        logger.info('Running recreateConsentDB')
+    def recreateTrackerDB(self):
+        logger.info('Running recreateTrackerDB')
         e = getEngine(local_config.tk_db_connection_string)
         tk_db.metadata.drop_all(e)
         tk_db.metadata.create_all(e)

@@ -109,6 +109,7 @@ class NewTicket:
         d = getTicket(self.key)
         # split title to get attachment ID
         l = d['summary'].split(' File ')
+        print(l)
         # make attributes
         self.attachment_id = l[1]
         self.status = d['status']['name']

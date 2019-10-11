@@ -1,6 +1,6 @@
 # local configuration options
 from string import Template
-import get_profile
+from modules import get_profile
 
 ##-- Connections
 # psycopg2 connection string template
@@ -18,6 +18,9 @@ tk_db_connection_string = Template(databaseStringTemplate).safe_substitute({**co
 
 # JIRA connection
 jira_config = {**conns['ldap'], 'url' : 'https://jira.extge.co.uk'}
+
+# CIP-API connection
+#cip_api_config = {**conns['cip_api'], 'url' : 'https://cipapi-gms-beta.gel.zone/'}
 
 ##-- File stores
 # folder to put image exports of the consent form pages
