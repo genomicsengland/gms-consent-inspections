@@ -1,6 +1,6 @@
 # GMS Consent Inspections
 
-These scripts generate the consent inspection tickets for any relevant attachments submitted during the early phases of GMS, and tracks any errors relating to the consent documents (corrupted pdfs etc.) and faults found in the consent documents during inspection.
+These scripts generate consent inspection tickets for any relevant attachments submitted to GMS, and tracks any errors relating to the consent documents (corrupted pdfs etc.) and faults found in the consent documents during inspection.
 The process is as follows:
 
 1. source relevant attachment details from the Genomic Record database;

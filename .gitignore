@@ -3,3 +3,5 @@
 log/*
 venv/*
 scratchpad.py
+local_config.py
+.gel_config

@@ -1,52 +1,96 @@
+"""
+provides two different JIRA Ticket Classes built off the parent
+Ticket class
+"""
 # provides two different JIRA Ticket classes
-import requests
 import logging
-from local_config import jira_config
-import io
-from PIL import Image
-import datetime
 import sys
+import datetime
+import io
+import requests
+from PIL import Image
+from local_config import jira_config
 from models import tk_db
 
-logger = logging.getLogger(__name__)
+
+LOGGER = logging.getLogger(__name__)
+
 
 # set up a requests session for talking to JIRA
 try:
-    logger.debug("Setting up JIRA connection")
+    LOGGER.debug("Setting up JIRA connection")
     s = requests.Session()
     s.auth = (jira_config['user'], jira_config['password'])
 except requests.exceptions.RequestException as e:
-    logger.critical("Unable to establish session with JIRA - %s" % e)
+    LOGGER.critical("Unable to establish session with JIRA - %s" % e)
     sys.exit(1)
 
-def createJiraIssue(d):
-    """REST API call to create a new jira issue using the content given"""
+
+def create_jira_issue(d):
+    """
+    REST API call to create a new jira issue using the content given
+    :params d: dictionary of data to send to make the ticket
+    :returns: ticket key of created ticket
+    """
+
+    # make the url to send the request to
     url = jira_config['url'] + '/rest/api/2/issue'
-    logger.debug('Received call to createJiraIssue - %s' % url)
+
+    LOGGER.debug('Received call to create_jira_issue - %s', url)
+
+    # try to post and create the ticket
     try:
-        r = s.post(url, json = d)
+        r = s.post(url, json=d)
         r.raise_for_status()
         return r.json()['key']
+
+    # if this doesn't work, exit
     except requests.exceptions.RequestException as e:
-        logger.debug('Failed to create issue - e')
+        LOGGER.debug('Failed to create issue - e')
         sys.exit(1)
 
-def uploadAttachment(k, n, i):
-    """Upload a numpy array (i) to a jira ticket (k) as a png with name n"""
+
+def upload_attachment(k, n, i):
+    """
+    Upload a numpy array to a jira ticket as a png
+    :params k: JIRA ticket key
+    :params n: filename for image to be uploaded as, should end with .png
+    :params i: Numpy array of the image
+    """
+
+    # make the url to send the request to
     url = jira_config['url'] + '/rest/api/2/issue/' + k + '/attachments'
+
+    # try to post the request, including conversion of the Numpy array to a
+    # Bytes object
     try:
-        r = s.post(url, files = {'file' : (n, arrayToBytes(i))}, headers = {"X-Atlassian-Token": "nocheck"})
+        r = s.post(url, files={
+            'file': (n, array_to_png(i))
+        }, headers={"X-Atlassian-Token": "nocheck"})
         r.raise_for_status
+
+    # if this doesn't work, exit
     except requests.exceptions.RequestException as e:
-        logger.debug('Failed to upload image - %s' % e)
+        LOGGER.debug('Failed to upload image - %s', e)
         sys.exit(1)
 
-def arrayToBytes(arr):
-    """convert numpy array to a bytes object for upload"""
+
+def array_to_png(arr):
+    """
+    convert numpy array to a PNG bytes object for upload
+    :params arr: Numpy array
+    :returns: Bytes object with PNG format
+    """
+
+    # create the Bytes object
     b = io.BytesIO()
-    i = Image.fromarray(arr).save(b, format='PNG')
-    b = b.getvalue()
-    return b
+
+    # fill it with the Image generated from the array
+    Image.fromarray(arr).save(b, format='PNG')
+
+    # return the Bytes value
+    return b.getvalue()
+
 
 class Ticket:
     """
@@ -73,31 +117,43 @@ class Ticket:
     ticket_id = None
 
     def __init__(self):
-        logger.debug('Creating new instance of Ticket')
 
-    def createTicket(self):
-        """generate the JSON object to be pushed to the REST API and create the ticket"""
-        logger.debug('Received call to createTicket')
+        LOGGER.debug('Creating new instance of Ticket')
+
+    def create_ticket(self):
+        """
+        generate the JSON object to be pushed to the REST API and create the ticket
+        """
+
+        LOGGER.debug('Received call to create_ticket')
+
         # gather together data for creating the ticket
         d = {
-            "fields" : {
-            'project' : {'key' : self.project},
-            'summary' : self.summary,
-            'description' : self.description,
-            'issuetype' : {'name' : self.issuetype},
-            'assignee' : {'name' : self.assignee}
+            "fields": {
+                'project': {'key': self.project},
+                'summary': self.summary,
+                'description': self.description,
+                'issuetype': {'name': self.issuetype},
+                'assignee': {'name': self.assignee}
             }}
+
         # create the ticket
-        self.ticket_key = createJiraIssue(d)
+        self.ticket_key = create_jira_issue(d)
+
         # update the SQLachmemy object with the ticket key
         self.tracking_db_ticket.ticket_key = self.ticket_key
-        logger.info('Ticket %s created - %s/browse/%s' % (self.ticket_key, jira_config['url'], self.ticket_key))
-        # upload the attachments
-        if len(self.ticket_image_attachments):
-            for i in self.ticket_image_attachments:
-                uploadAttachment(self.ticket_key, i[0], i[1])
-            logger.info('%s attachments added' % len(self.ticket_image_attachments))
 
+        LOGGER.info('Ticket %s created - %s/browse/%s',
+                    self.ticket_key, jira_config['url'], self.ticket_key)
+
+        # if there are any attachments added to the ticket
+        if len(self.ticket_image_attachments):
+            # upload each one
+            for i in self.ticket_image_attachments:
+                upload_attachment(self.ticket_key, i[0], i[1])
+
+            LOGGER.info('%s attachments added',
+                        len(self.ticket_image_attachments))
 
 
 class InspectionTicket(Ticket):
@@ -105,66 +161,103 @@ class InspectionTicket(Ticket):
     An inspection ticket inheriting from the Ticket class
 
     Extra attributes:
-        description_table: empty list to accommodate the list of lists that will be reformatted into a JIRA table by parseTableToDescription
+        description_table: empty list to accommodate the list of lists that
+        will be reformatted into a JIRA table by parseTableToDescription
         tracking_db_ticket: instance of tk_db.Ticket
     """
 
     def __init__(self, session, description_table, attachment_objects):
-        """set up a new instance of InspectionTicket class
-        
-        Arguments:
-            session: a SQLAlchemy session
-            description_table: a list of lists that represent a table to be placed in ticket description
-            attachment_objects: list of instances of attachment.Attachment"""
+        """
+        create a new instance of InspectionTicket
+        :params session: a SQLAlchemy session
+        :params description_table: a list of lists that represent a table to be
+        placed in ticket description
+        :params attachment_objects: list of instances of attachment.Attachment
+        """
 
-        def parseTableToDescription(t):
-            """convert list of lists to a jira markup table and update ticket description"""
-            logger.debug('Received call to parseTable')
+        def format_table(t):
+            """
+            convert list of lists to a jira markup table and update ticket
+            description
+            :params t: list of lists with each element being a row
+            :returns: string with linebreaks
+            """
+
+            LOGGER.debug('Received call to parseTable')
+
             out = []
+
+            # process each row
             for i in range(len(t)):
+
+                # if it's the header we need to separate by double pipe
                 if i == 0:
                     out.append('||' + '||'.join(t[i]) + '||')
+
+                # otherwise we just single pipe separate
                 else:
                     out.append('|' + '|'.join(t[i]) + '|')
+
+            # return the full string separated by line breaks
             return '\n'.join(out)
 
-        logger.debug('Creating new instance of InspectionTicket')
+        LOGGER.debug('Creating new instance of InspectionTicket')
+
         # create the description table
-        self.description = parseTableToDescription(description_table)
+        self.description = format_table(description_table)
+
         # populate the summary field
-        self.summary = 'GMS Consent Inspection %s' % '{0:%Y-%m-%d}'.format(datetime.datetime.today())
+        self.summary = 'GMS Consent Inspection %s' % '{0:%Y-%m-%d}'.\
+            format(datetime.datetime.today())
+
         # create a new instance of tk_db.Ticket
-        self.tracking_db_ticket = tk_db.Ticket(ticket_key = 'UNK', ticket_assignee = self.assignee, ticket_status = 'new')
-        # add in the Attachment.index_attachment for each of the attachments featured in the ticket
-        self.tracking_db_ticket.attachment = [x.index_attachment for x in attachment_objects]
+        self.tracking_db_ticket = tk_db.Ticket(
+            ticket_assignee=self.assignee, ticket_status='new')
+
+        # add in the Attachment.index_attachment for each of the attachments
+        # featured in the ticket
+        self.tracking_db_ticket.attachment = [
+            x.index_attachment for x in attachment_objects]
+
         # add the object into the session
         session.add(self.tracking_db_ticket)
         session.flush()
+
         # update the ticket_id
         self.ticket_id = self.tracking_db_ticket.ticket_id
 
+
 class ErrorTicket(Ticket):
-    """An error ticket inheriting from the Ticket class"""
+    """
+    An error ticket inheriting from the Ticket class
+    """
 
     def __init__(self, session, attachment_object):
-        """initiate a new instance of Error Ticket
-        
-        Arguments:
-            session: a SQLalchemy session
-            attachment_object: an instance of attachment.Attachment
-            """
+        """
+        initiate a new instance of Error Ticket
+        :params session: a SQLalchemy session
+        :params attachment_object: an instance of attachment.Attachment
+        """
 
-        logger.debug("Creating new instance of ErrorTicket")
+        LOGGER.debug("Creating new instance of ErrorTicket")
+
         # populate the text fields
-        self.summary = 'Consent Error for file id %s' % attachment_object.attachment_id
-        self.description = 'There was an %s issue with this file' % ';'.join(attachment_object.errors) 
+        self.summary = 'Consent Error for file id %s' %\
+            attachment_object.attachment_id
+        self.description = 'There was an %s issue with this file' %\
+            ';'.join(attachment_object.errors)
+
         # create a new instance of tk_db.Ticket
-        self.tracking_db_ticket = tk_db.Ticket(ticket_key = 'UNK', ticket_assignee = self.assignee, ticket_status = 'error')
+        self.tracking_db_ticket = tk_db.Ticket(ticket_assignee=self.assignee,
+                                               ticket_status='error')
+
         # add in reference for the Attachment.index_attachment
-        self.tracking_db_ticket.errors = [tk_db.Error(attachment_error = attachment_object.index_attachment)]
+        self.tracking_db_ticket.errors = [
+            tk_db.Error(attachment_error=attachment_object.index_attachment)]
+
         # add the object to the session
         session.add(self.tracking_db_ticket)
         session.flush()
+
         # update the ticket_id
         self.ticket_id = self.tracking_db_ticket.ticket_id
-

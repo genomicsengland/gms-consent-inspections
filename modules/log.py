@@ -1,11 +1,14 @@
-# creates the loggers and handlers
-# console and file handlers
-# file handler is a timed rotating handler (currently rotating each day) and keeping backups
+"""
+creates the loggers and handlers (console and file output)
+file handler is a timed rotating handler (currently rotating each day) and
+keeping backups
+"""
 import logging
 import logging.config
 import logging.handlers
 
-def setupLogger():
+
+def setup_logger():
     """set up logging handlers and formatters"""
     d = {
         'version': 1,
@@ -42,4 +45,4 @@ def setupLogger():
     }
     logging.config.dictConfig(d)
 
-setupLogger()
+setup_logger()
